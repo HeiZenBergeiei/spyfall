@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spyfall Red Ring</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Kanit', sans-serif; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .btn-press { transition: transform 0.1s; }
+        .btn-press:active { transform: scale(0.97); }
+        
+        /* Animation สำหรับวงแหวนแดง */
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 10px rgba(220, 38, 38, 0.5); border-color: rgba(220, 38, 38, 0.8); }
+            50% { box-shadow: 0 0 25px rgba(220, 38, 38, 1); border-color: rgba(255, 0, 0, 1); }
+        }
+        .active-turn {
+            animation: pulse-red 1.5s infinite;
+            border-width: 4px;
+            border-color: #ef4444; /* red-500 */
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen overflow-hidden select-none">
+
+    <div id="app" class="h-screen flex flex-col max-w-md mx-auto bg-slate-950 relative shadow-2xl border-x border-slate-800">
+
+        <transition enter-active-class="transition duration-300" enter-from-class="-translate-y-10 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-200" leave-to-class="-translate-y-10 opacity-0">
+            <div v-if="errorMsg" class="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-6 py-2 rounded-full shadow-xl z-50 font-bold text-sm border border-red-500 whitespace-nowrap">
+                {{ errorMsg }}
+            </div>
+        </transition>
+
+        <div v-if="view === 'HOME'" class="flex-1 flex flex-col p-6 items-center justify-center space-y-8">
+             <div class="text-center">
+                <div class="text-8xl mb-2 filter drop-shadow-lg">🕵️</div>
+                <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-red-500 tracking-tighter">SPYFALL</h1>
+            </div>
+            
+            <div class="w-full bg-slate-800/60 p-6 rounded-3xl border border-slate-700/50 backdrop-blur-sm">
+                <div class="mb-4">
+                    <input v-model="username" type="text" class="w-full p-4 mt-1 rounded-2xl bg-slate-900/50 text-white border border-slate-700 focus:border-amber-500 outline-none transition text-center text-lg font-bold placeholder:text-slate-600" placeholder="ชื่อของคุณ...">
+                </div>
+                
+                <div class="mb-2">
+                    <div class="flex gap-2 overflow-x-auto py-2 hide-scroll justify-center">
+                        <button v-for="avi in avatars" :key="avi" @click="avatar = avi" 
+                            :class="['text-3xl min-w-[60px] h-[60px] flex items-center justify-center rounded-2xl transition border-2', avatar === avi ? 'bg-amber-500/20 border-amber-500 scale-105' : 'bg-slate-700/50 border-transparent opacity-50 grayscale']">
+                            {{ avi }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full space-y-3">
+                <button @click="createRoom" class="btn-press w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-4 rounded-2xl text-xl shadow-lg shadow-orange-900/20 border-b-4 border-orange-700">
+                    สร้างห้องใหม่
+                </button>
+                <div class="flex gap-2">
+                    <input v-model="joinCode" type="text" class="flex-1 p-4 rounded-2xl bg-slate-800 border-2 border-slate-700 text-center uppercase font-mono tracking-widest focus:border-blue-500 outline-none placeholder:text-slate-600" placeholder="CODE">
+                    <button @click="joinRoom" class="btn-press w-32 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl shadow-lg border-b-4 border-blue-800">
+                        เข้าร่วม
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="view === 'LOBBY'" class="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-900">
+            <div class="pt-8 pb-6 px-6 text-center bg-gradient-to-b from-slate-950 to-slate-900 z-10">
+                <p class="text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase mb-1">Room Code</p>
+                <h1 @click="copyCode" class="text-6xl font-black text-white tracking-widest cursor-pointer active:scale-95 transition select-all drop-shadow-2xl font-mono">{{ room.id }}</h1>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto px-4 pb-4">
+                <div class="flex flex-col gap-2">
+                    <div v-for="p in room.players" :key="p.id" class="flex items-center bg-slate-800 p-3 rounded-2xl border border-slate-700/50">
+                        <div class="w-14 h-14 rounded-full bg-slate-700 flex items-center justify-center text-3xl shadow-inner border border-slate-600 mr-4 shrink-0">{{ p.avatar }}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-lg text-slate-200 truncate">{{ p.name }}</span>
+                                <span v-if="p.id === myId" class="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded-full font-bold">YOU</span>
+                            </div>
+                            <div class="text-xs text-slate-500 font-medium">Ready</div>
+                        </div>
+                        <div v-if="p.isHost" class="bg-amber-500 text-black text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wide">HOST</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-900 border-t border-slate-800">
+                <div v-if="isHost" class="bg-slate-800 p-4 rounded-2xl mb-3 border border-slate-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase">เวลาเล่น: <span class="text-amber-400 text-base">{{ room.settings.timeLimit }} นาที</span></span>
+                    </div>
+                    <input type="range" min="3" max="15" v-model="room.settings.timeLimit" @change="updateSettings" class="w-full h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+                <button v-if="isHost" @click="startGame" class="btn-press w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-4 rounded-2xl text-xl shadow-lg shadow-emerald-900/30 border-b-4 border-emerald-800">เริ่มเกมเลย! 🚀</button>
+                <div v-else class="text-center p-4 text-slate-500 animate-pulse bg-slate-800 rounded-2xl border border-slate-700 text-sm font-medium">รอหัวห้องกดเริ่มเกม...</div>
+            </div>
+        </div>
+
+        <div v-if="view === 'GAME' || view === 'VOTING'" class="flex-1 flex flex-col h-full overflow-hidden bg-slate-900">
+            
+            <div class="bg-slate-800 px-4 py-3 flex justify-between items-center border-b border-slate-700 shadow-lg z-20 shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="font-mono text-3xl font-bold w-20" :class="timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-amber-400'">{{ formatTime(timeLeft) }}</div>
+                    <div class="h-8 w-[2px] bg-slate-700"></div>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">{{ view === 'VOTING' ? 'โหวตจับ Spy' : 'ค้นหาความจริง' }}</span>
+                </div>
+                <button v-if="view === 'GAME'" @click="callVote" class="bg-slate-700 hover:bg-red-600/90 hover:text-white text-slate-400 text-xs px-3 py-2 rounded-lg font-bold transition border border-slate-600 hover:border-red-500">🚨 เรียกโหวต</button>
+            </div>
+
+            <div class="bg-slate-950 py-4 border-b border-slate-800 shrink-0 shadow-xl z-10 relative">
+                <div v-if="view === 'GAME' && currentTurnId === myId" class="absolute -bottom-8 left-0 right-0 text-center z-50 pointer-events-none">
+                    <span class="bg-red-600 text-white text-[10px] px-3 py-1 rounded-full shadow-lg font-bold animate-bounce">ตาคุณถาม! คลิกเพื่อนเพื่อส่งไมค์</span>
+                </div>
+
+                <div class="flex gap-4 overflow-x-auto px-4 hide-scroll py-2 items-center">
+                    <div v-for="p in playersList" :key="p.id" @click="handlePlayerClick(p.id)" 
+                        class="flex flex-col items-center min-w-[80px] cursor-pointer relative transition-all duration-300"
+                        :class="[
+                            currentTurnId === p.id && view === 'GAME' ? 'transform scale-110 z-10' : 'opacity-80 hover:opacity-100'
+                        ]">
+                        
+                        <div class="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-lg border-2 transition-all duration-300 relative bg-slate-800"
+                             :class="[
+                                currentTurnId === p.id && view === 'GAME' ? 'active-turn' : 'border-slate-700',
+                                selectedVoteId === p.id && view === 'VOTING' ? 'ring-4 ring-yellow-500 border-yellow-500' : ''
+                             ]">
+                            {{ p.avatar }}
+                            
+                            <div v-if="view === 'VOTING' && selectedVoteId === p.id" class="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                                <span class="text-3xl animate-bounce">👇</span>
+                            </div>
+                        </div>
+
+                        <div class="text-xs font-bold truncate w-20 text-center mt-2 px-1 py-0.5 rounded"
+                             :class="currentTurnId === p.id && view === 'GAME' ? 'bg-red-600 text-white shadow-md' : 'text-slate-400'">
+                            {{ p.name }}
+                        </div>
+                        
+                        <div v-if="p.id === myId" class="absolute top-0 right-0 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col overflow-hidden relative">
+                
+                <div class="p-4 pb-2 shrink-0 z-10">
+                    <div @click="toggleSecret" 
+                         class="rounded-2xl border cursor-pointer transition-all duration-300 relative overflow-hidden shadow-xl group bg-cover bg-center"
+                         :style="showSecret && gameData.locationImage ? { backgroundImage: `url('${gameData.locationImage}')` } : {}"
+                         :class="showSecret ? (gameData.isSpy ? 'bg-red-950 border-red-500' : 'bg-slate-800 border-emerald-500') : 'bg-slate-800 border-slate-700 h-14 flex items-center justify-center hover:bg-slate-750'">
+                        
+                        <div v-if="!showSecret" class="text-slate-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2 group-hover:text-white">
+                            <span>🔐</span> แตะเพื่อดูบทบาท
+                        </div>
+                        <div v-else class="text-center p-6 w-full h-36 flex flex-col justify-center relative bg-black/60 backdrop-blur-sm">
+                            <div class="font-black text-3xl mb-1 drop-shadow-lg text-white tracking-wide">
+                                {{ gameData.isSpy ? "🕵️ คุณคือ SPY" : gameData.location }}
+                            </div>
+                            <div class="text-lg font-bold text-amber-300">
+                                {{ gameData.role }}
+                            </div>
+                            <div class="absolute top-2 right-3 text-[10px] opacity-60 uppercase font-bold text-white">แตะเพื่อซ่อน</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto px-4 pb-24">
+                    <div class="flex items-center justify-center mb-4">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/50">สถานที่ต้องสงสัย</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <button v-for="locObj in gameData.allLocations" :key="locObj.name" 
+                            @click="toggleCross(locObj.name)"
+                            class="rounded-xl border transition-all text-center relative overflow-hidden active:scale-95 group aspect-[8/5]"
+                            :class="crossedOut[locObj.name] ? 'border-slate-800 opacity-50 grayscale' : 'border-slate-700 hover:border-amber-500'">
+                            <img :src="locObj.image" class="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-110 duration-500">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30"></div>
+                            <div class="absolute inset-0 flex items-end justify-center p-2">
+                                <span class="text-white font-bold text-sm drop-shadow-lg relative z-10">{{ locObj.name }}</span>
+                            </div>
+                            <div v-if="crossedOut[locObj.name]" class="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/60 backdrop-blur-[2px]">
+                                <div class="w-[120%] h-1 bg-red-600/80 rotate-[20deg] shadow-lg"></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none flex justify-center items-end pb-6">
+                    <button v-if="gameData.isSpy && view === 'GAME'" @click="openSpyGuessModal" class="pointer-events-auto btn-press w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-2xl shadow-xl shadow-red-900/50 border border-red-400 flex items-center justify-center gap-2 animate-pulse">🚨 ฉันรู้แล้ว! (เฉลยตัว)</button>
+                    <button v-if="view === 'VOTING'" @click="submitVote" :disabled="!selectedVoteId" class="pointer-events-auto btn-press w-full font-bold py-4 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 border-b-4" :class="selectedVoteId ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-800 shadow-blue-900/30' : 'bg-slate-700 text-slate-500 border-slate-800'">{{ selectedVoteId ? 'ยืนยันโหวตคนนี้' : 'เลือกผู้เล่นจากด้านบน 👆' }}</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showSpyModal" class="fixed inset-0 bg-slate-950/90 z-50 flex flex-col p-6 items-center justify-center backdrop-blur-sm">
+            <h2 class="text-3xl font-black text-red-500 mb-2 drop-shadow-lg">เลือกสถานที่ตอบ!</h2>
+            <div class="w-full max-w-md bg-slate-800 rounded-3xl p-3 h-[60vh] overflow-y-auto grid grid-cols-2 gap-2 border border-slate-700 shadow-2xl">
+                <button v-for="locObj in gameData.allLocations" :key="locObj.name"
+                    @click="confirmSpyGuess(locObj.name)"
+                    class="relative h-24 rounded-2xl overflow-hidden group border border-slate-600 hover:border-red-500 transition-all">
+                    <img :src="locObj.image" class="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-80 transition">
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/40 font-bold text-center p-1">{{ locObj.name }}</div>
+                </button>
+            </div>
+            <button @click="showSpyModal = false" class="mt-8 text-slate-400 font-bold underline hover:text-white transition">ยกเลิก</button>
+        </div>
+
+        <div v-if="gameOverData" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-8 text-center">
+            <div class="text-8xl mb-6 animate-bounce">{{ gameOverData.winner === 'SPY' ? '🕵️' : '🎉' }}</div>
+            <h2 class="text-5xl font-black mb-4 uppercase tracking-tighter" :class="gameOverData.winner === 'SPY' ? 'text-red-500' : 'text-emerald-500'">{{ gameOverData.winner === 'SPY' ? 'SPY ชนะ!' : 'ชาวบ้าน ชนะ!' }}</h2>
+            <p class="text-lg text-slate-300 mb-8 font-medium leading-relaxed max-w-xs">{{ gameOverData.reason }}</p>
+            <div class="bg-slate-800/80 p-6 rounded-3xl w-full max-w-sm mb-8 border border-slate-700 shadow-2xl">
+                <div class="grid grid-cols-2 gap-4 divide-x divide-slate-700">
+                    <div><div class="text-[10px] text-slate-500 uppercase font-bold mb-1">สถานที่จริง</div><div class="text-xl font-bold text-amber-400">{{ gameOverData.actualLocation }}</div></div>
+                    <div><div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Spy คือ</div><div class="text-xl font-bold text-red-400">{{ gameOverData.spyName }}</div></div>
+                </div>
+            </div>
+            <button @click="backToLobby" class="btn-press bg-white text-slate-900 font-bold py-4 px-12 rounded-full hover:bg-slate-200 transition shadow-lg shadow-white/10 text-lg">กลับไปหน้าห้อง</button>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const socket = io();
+
+        createApp({
+            data() {
+                return {
+                    view: 'HOME', myId: '', username: '', avatar: '🐶',
+                    avatars: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🦁','🐯','🐮'],
+                    joinCode: '', errorMsg: '',
+                    room: { id: '', players: [], settings: { timeLimit: 5 } }, isHost: false, playersList: [],
+                    gameData: { isSpy: false, role: '', location: '', locationImage: null, allLocations: [] },
+                    showSecret: false, crossedOut: {}, timeLeft: 0, timerInterval: null,
+                    selectedVoteId: null, showSpyModal: false, gameOverData: null,
+                    currentTurnId: '' // เก็บว่าตาใคร
+                }
+            },
+            mounted() {
+                socket.on('connect', () => { this.myId = socket.id; });
+                if(socket.id) this.myId = socket.id;
+                socket.on('room_joined', this.updateRoom);
+                socket.on('update_lobby', this.updateRoom);
+                socket.on('update_settings', (st) => this.room.settings = st);
+                socket.on('error_msg', this.showError);
+                
+                socket.on('game_started', (data) => {
+                    this.gameData = data; this.playersList = data.players; this.crossedOut = {};
+                    this.currentTurnId = data.currentTurnId; // รับค่าคนเริ่ม
+                    this.showSecret = true; this.view = 'GAME'; this.selectedVoteId = null;
+                    this.showSpyModal = false; this.gameOverData = null;
+                    if(this.timerInterval) clearInterval(this.timerInterval);
+                    this.timerInterval = setInterval(() => {
+                        const now = Date.now(); const diff = Math.floor((data.endTime - now) / 1000);
+                        this.timeLeft = diff > 0 ? diff : 0;
+                        if(diff <= 0) { clearInterval(this.timerInterval); if(this.view === 'GAME') this.callVote(); }
+                    }, 1000);
+                });
+                
+                // รับค่าเมื่อมีการส่งไม้
+                socket.on('turn_updated', (data) => {
+                    this.currentTurnId = data.currentTurnId;
+                });
+
+                socket.on('start_voting', () => { this.view = 'VOTING'; this.showError('หมดเวลา! โหวตหาคนร้ายเดี๋ยวนี้'); });
+                socket.on('vote_result_wrong', (data) => this.showError(data.msg));
+                socket.on('spy_force_guess', () => { this.showSpyModal = true; this.showError('โอกาสสุดท้ายของ Spy!'); });
+                socket.on('game_over', (data) => { this.gameOverData = data; clearInterval(this.timerInterval); });
+            },
+            methods: {
+                createRoom() { if(!this.username) return this.showError('กรุณาใส่ชื่อ'); socket.emit('create_room', { username: this.username, avatar: this.avatar }); },
+                joinRoom() { if(!this.username || !this.joinCode) return this.showError('ชื่อหรือรหัสไม่ถูกต้อง'); socket.emit('join_room', { roomId: this.joinCode, username: this.username, avatar: this.avatar }); },
+                updateRoom(data) { this.room = data; const me = data.players.find(p => p.id === socket.id); if(me) this.isHost = me.isHost; this.view = 'LOBBY'; },
+                updateSettings() { socket.emit('update_settings', { roomId: this.room.id, timeLimit: this.room.settings.timeLimit }); },
+                startGame() { socket.emit('start_game', this.room.id); },
+                toggleSecret() { this.showSecret = !this.showSecret; },
+                toggleCross(locName) { this.crossedOut[locName] = !this.crossedOut[locName]; },
+                copyCode() { navigator.clipboard.writeText(this.room.id); this.showError('คัดลอกรหัสห้องแล้ว!'); },
+                showError(msg) { this.errorMsg = msg; setTimeout(() => this.errorMsg = '', 3000); },
+                formatTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; },
+                callVote() { if(confirm('ต้องการเรียกโหวต?')) socket.emit('call_vote', this.room.id); },
+                
+                // Logic ใหม่สำหรับการคลิกผู้เล่น
+                handlePlayerClick(pid) {
+                    if (this.view === 'VOTING') {
+                        this.selectedVoteId = pid;
+                    } else if (this.view === 'GAME') {
+                        // ถ้าเป็นตาเรา และคลิกคนอื่น -> ส่งไม้
+                        if (this.currentTurnId === this.myId && pid !== this.myId) {
+                            socket.emit('pass_turn', { roomId: this.room.id, targetId: pid });
+                        }
+                    }
+                },
+                
+                submitVote() { if(!this.selectedVoteId) return; socket.emit('submit_vote', { roomId: this.room.id, targetId: this.selectedVoteId }); this.showError('ส่งโหวตแล้ว รอคนอื่น...'); },
+                openSpyGuessModal() { this.showSpyModal = true; },
+                confirmSpyGuess(locName) { socket.emit('spy_guess_location', { roomId: this.room.id, locationName: locName }); this.showSpyModal = false; },
+                backToLobby() { socket.emit('reset_game_request', this.room.id); }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
