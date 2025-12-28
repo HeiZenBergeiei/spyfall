@@ -43,7 +43,7 @@ io.on('connection', (socket) => {
             players: [{ id: socket.id, name: username, avatar, isHost: true }],
             settings: { timeLimit: 5 },
             state: "LOBBY",
-            votes: {}, actualLocation: "", spyId: "", currentTurnId: "" // เพิ่มตัวแปรเก็บคนถาม
+            votes: {}, actualLocation: "", spyId: "", currentTurnId: ""
         };
         socket.join(roomId);
         socket.emit('room_joined', rooms[roomId]);
@@ -80,7 +80,6 @@ io.on('connection', (socket) => {
         const spyIndex = Math.floor(Math.random() * room.players.length);
         room.spyId = room.players[spyIndex].id;
         
-        // สุ่มคนเริ่มถามคนแรก
         const starterIndex = Math.floor(Math.random() * room.players.length);
         room.currentTurnId = room.players[starterIndex].id;
 
@@ -103,22 +102,25 @@ io.on('connection', (socket) => {
                 allLocations: allLocationsForClient,
                 endTime,
                 players: room.players,
-                currentTurnId: room.currentTurnId // ส่งคนเริ่มไปบอกทุกคน
+                currentTurnId: room.currentTurnId
             });
         });
     });
 
-    // Event: ส่งไม้ต่อ (Pass Turn)
     socket.on('pass_turn', ({ roomId, targetId }) => {
         const room = rooms[roomId];
-        if (room && room.state === "PLAYING") {
-            // เช็คว่าคนกด เป็นเจ้าของเทิร์นจริงไหม (กันคนอื่นมั่วกด)
-            if (socket.id === room.currentTurnId) {
-                room.currentTurnId = targetId;
-                // บอกทุกคนว่าเปลี่ยนคนถามแล้ว
-                io.to(roomId).emit('turn_updated', { currentTurnId: targetId });
-            }
+        if (room && room.state === "PLAYING" && socket.id === room.currentTurnId) {
+            room.currentTurnId = targetId;
+            io.to(roomId).emit('turn_updated', { currentTurnId: targetId });
         }
+    });
+
+    // Event ใหม่: Spy ประกาศตัว
+    socket.on('spy_announce_reveal', (roomId) => {
+        const room = rooms[roomId];
+        if(!room) return;
+        const spyName = room.players.find(p => p.id === room.spyId)?.name || "Unknown";
+        io.to(roomId).emit('notify_spy_revealed', { spyName });
     });
 
     socket.on('spy_guess_location', ({ roomId, locationName }) => {
@@ -164,6 +166,7 @@ io.on('connection', (socket) => {
              room.actualLocation = "";
              room.spyId = "";
              room.currentTurnId = "";
+             // ส่งกลับไปเพื่อบอกให้ Client รีเซ็ตหน้า
              io.to(roomId).emit('update_lobby', room);
         }
     });
