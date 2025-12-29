@@ -9,16 +9,75 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- DATA ---
+// --- DATA: รวมสถานที่เดิม + 5 สถานที่ใหม่ ---
 const locationData = [
-    { name: "โรงพยาบาล", image: "https://images.unsplash.com/photo-1587351021759-3e566b9af922?q=80&w=800&auto=format&fit=crop", roles: ["หมอ", "พยาบาล", "คนไข้", "ภารโรง", "เภสัชกร", "ผอ.โรงพยาบาล", "ญาติคนไข้"] },
-    { name: "ธนาคาร", image: "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?q=80&w=800&auto=format&fit=crop", roles: ["ผู้จัดการ", "โจร", "พนักงานเคาน์เตอร์", "ยาม", "ลูกค้า", "คนขับรถขนเงิน", "แม่บ้าน"] },
-    { name: "โรงเรียน", image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop", roles: ["ครูใหญ่", "นักเรียน", "ภารโรง", "ครูพละ", "แม่ค้าโรงอาหาร", "ผู้ปกครอง", "นักเรียนโดดเรียน"] },
-    { name: "กองถ่ายภาพยนตร์", image: "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=800&auto=format&fit=crop", roles: ["ผู้กำกับ", "ดารา", "ตากล้อง", "สตั๊นแมน", "ช่างแต่งหน้า", "ตัวประกอบ", "คนเขียนบท"] },
-    { name: "เครื่องบิน", image: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=800&auto=format&fit=crop", roles: ["กัปตัน", "แอร์โฮสเตส", "ผู้โดยสารชั้นหนึ่ง", "ช่างเครื่อง", "สจ๊วต", "ผู้ก่อการร้าย", "เด็กทารก"] },
-    { name: "งานวัด", image: "https://images.unsplash.com/photo-1561484930-998b6a7b22e8?q=80&w=800&auto=format&fit=crop", roles: ["คนขายลูกชิ้น", "เด็กแว้น", "มัคทายก", "นางรำ", "คนปาลูกโป่ง", "คนเดินเที่ยว", "ขอทาน"] },
-    { name: "สถานีตำรวจ", image: "https://images.unsplash.com/photo-1596561139463-2287f3d643d9?q=80&w=800&auto=format&fit=crop", roles: ["สารวัตร", "โจรกลับใจ", "ตำรวจจราจร", "นักข่าว", "ทนายความ", "พยาน", "สุนัขตำรวจ"] },
-    { name: "เรือดำน้ำ", image: "https://images.unsplash.com/photo-1551601658-00c7764d266e?q=80&w=800&auto=format&fit=crop", roles: ["กัปตันเรือ", "ต้นหน", "พ่อครัว", "ช่างเครื่อง", "ทหารสื่อสาร", "แพทย์สนาม", "พลทหาร"] }
+    // --- ของเดิม ---
+    { 
+        name: "โรงพยาบาล", 
+        image: "https://images.unsplash.com/photo-1587351021759-3e566b9af922?q=80&w=800&auto=format&fit=crop", 
+        roles: ["หมอ", "พยาบาล", "คนไข้", "ภารโรง", "เภสัชกร", "ผอ.โรงพยาบาล", "ญาติคนไข้"] 
+    },
+    { 
+        name: "ธนาคาร", 
+        image: "https://images.unsplash.com/photo-1501167786227-4cba60f6d58f?q=80&w=800&auto=format&fit=crop", 
+        roles: ["ผู้จัดการ", "โจร", "พนักงานเคาน์เตอร์", "ยาม", "ลูกค้า", "คนขับรถขนเงิน", "แม่บ้าน"] 
+    },
+    { 
+        name: "โรงเรียน", 
+        image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop", 
+        roles: ["ครูใหญ่", "นักเรียน", "ภารโรง", "ครูพละ", "แม่ค้าโรงอาหาร", "ผู้ปกครอง", "นักเรียนโดดเรียน"] 
+    },
+    { 
+        name: "กองถ่ายภาพยนตร์", 
+        image: "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=800&auto=format&fit=crop", 
+        roles: ["ผู้กำกับ", "ดารา", "ตากล้อง", "สตั๊นแมน", "ช่างแต่งหน้า", "ตัวประกอบ", "คนเขียนบท"] 
+    },
+    { 
+        name: "เครื่องบิน", 
+        image: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=800&auto=format&fit=crop", 
+        roles: ["กัปตัน", "แอร์โฮสเตส", "ผู้โดยสารชั้นหนึ่ง", "ช่างเครื่อง", "สจ๊วต", "ผู้ก่อการร้าย", "เด็กทารก"] 
+    },
+    { 
+        name: "งานวัด", 
+        image: "https://images.unsplash.com/photo-1561484930-998b6a7b22e8?q=80&w=800&auto=format&fit=crop", 
+        roles: ["คนขายลูกชิ้น", "เด็กแว้น", "มัคทายก", "นางรำ", "คนปาลูกโป่ง", "คนเดินเที่ยว", "ขอทาน"] 
+    },
+    { 
+        name: "สถานีตำรวจ", 
+        image: "https://images.unsplash.com/photo-1596561139463-2287f3d643d9?q=80&w=800&auto=format&fit=crop", 
+        roles: ["สารวัตร", "โจรกลับใจ", "ตำรวจจราจร", "นักข่าว", "ทนายความ", "พยาน", "สุนัขตำรวจ"] 
+    },
+    { 
+        name: "เรือดำน้ำ", 
+        image: "https://images.unsplash.com/photo-1551601658-00c7764d266e?q=80&w=800&auto=format&fit=crop", 
+        roles: ["กัปตันเรือ", "ต้นหน", "พ่อครัว", "ช่างเครื่อง", "ทหารสื่อสาร", "แพทย์สนาม", "พลทหาร"] 
+    },
+    // --- สถานที่ใหม่ 5 แห่ง ---
+    { 
+        name: "คาเฟ่", 
+        image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=800&auto=format&fit=crop", 
+        roles: ["บาริสต้า", "ลูกค้า", "เจ้าของร้าน", "อินฟลูเอนเซอร์", "พนักงานล้างแก้ว", "แมวประจำร้าน", "ไรเดอร์ส่งของ"] 
+    },
+    { 
+        name: "สวนสัตว์", 
+        image: "https://images.unsplash.com/photo-1534567176735-8463641bd19b?q=80&w=800&auto=format&fit=crop", 
+        roles: ["คนเลี้ยงสัตว์", "สัตวแพทย์", "นักท่องเที่ยว", "ลิง", "คนขายตั๋ว", "คนขายของที่ระลึก", "ผู้อำนวยการ"] 
+    },
+    { 
+        name: "ทะเล", 
+        image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop", 
+        roles: ["ไลฟ์การ์ด", "คนขายไก่ย่าง", "นักท่องเที่ยว", "คนขับบานาน่าโบ๊ท", "ปูเสฉวน", "นางแบบ", "ชาวประมง"] 
+    },
+    { 
+        name: "สวนน้ำ", 
+        image: "https://images.unsplash.com/photo-1582653291655-60ae41d4c81a?q=80&w=800&auto=format&fit=crop", 
+        roles: ["ไลฟ์การ์ด", "เด็กจมน้ำ", "ผู้ปกครอง", "คนดูแลสไลเดอร์", "คนเก็บห่วงยาง", "คนขายชุดว่ายน้ำ", "นักว่ายน้ำทีมชาติ"] 
+    },
+    { 
+        name: "คอนเสิร์ต", 
+        image: "https://images.unsplash.com/photo-1459749411177-287ce3276854?q=80&w=800&auto=format&fit=crop", 
+        roles: ["นักร้องนำ", "การ์ดหน้าเวที", "แฟนคลับแถวหน้า", "มือกลอง", "ซาวด์เอ็นจิเนียร์", "คนขายบัตรผี", "แดนเซอร์"] 
+    }
 ];
 
 let rooms = {};
@@ -115,7 +174,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Event ใหม่: Spy ประกาศตัว
     socket.on('spy_announce_reveal', (roomId) => {
         const room = rooms[roomId];
         if(!room) return;
@@ -166,7 +224,6 @@ io.on('connection', (socket) => {
              room.actualLocation = "";
              room.spyId = "";
              room.currentTurnId = "";
-             // ส่งกลับไปเพื่อบอกให้ Client รีเซ็ตหน้า
              io.to(roomId).emit('update_lobby', room);
         }
     });
